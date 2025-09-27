@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-io24x(h3l$-k0w9a-i!ueb4p(a2%!vxd%+ad%vml^mac&93r@f
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['your-app-name.onrender.com']
 
 
 # Application definition
@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'RAG_communication',  # Your existing app
     'data_ingestion',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -50,10 +51,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'SIH25_backend.urls'
-
+CORS_ALLOW_ALL_ORIGINS = True 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',

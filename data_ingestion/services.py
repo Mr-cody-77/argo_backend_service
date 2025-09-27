@@ -230,3 +230,105 @@ def coordinate_argo_ingestion(base_url):
                 ingested_measurements += count
             
     return ingested_measurements
+def process_uploaded_netcdf_file(uploaded_file):
+    """
+    Processes an uploaded .nc file from Django (request.FILES["file"]).
+    Extracts data and saves it to the DB.
+    Returns number of measurements created.
+    """
+    logger.info(f"📂 Parsing uploaded file: {uploaded_file.name}")
+
+    measurements_to_create = []
+    profiles_created = 0
+
+    try:
+        # Make sure we use a proper bytes buffer
+        uploaded_file.seek(0)  # rewind file if needed
+        file_like = io.BytesIO(uploaded_file.read())
+
+        # Try multiple engines
+        engines = ['netcdf4', 'scipy', 'h5netcdf']
+        ds = None
+        for eng in engines:
+            try:
+                ds = xr.open_dataset(file_like, decode_timedelta=False, engine=eng)
+                logger.info(f"✅ Successfully opened {uploaded_file.name} with engine='{eng}'")
+                break
+            except Exception:
+                file_like.seek(0)  # rewind for next attempt
+                continue
+
+        if ds is None:
+            logger.error(f"❌ Could not open {uploaded_file.name} with any engine: {engines}")
+            return 0
+
+        with ds:
+            if "N_PROF" not in ds.sizes:
+                logger.warning(f"⚠️ Skipping non-profile file: {uploaded_file.name}")
+                return 0
+
+            n_profiles = ds.sizes.get("N_PROF", 1)
+
+            for i in range(n_profiles):
+                try:
+                    platform_number = decode_bytes(safe_index(ds["PLATFORM_NUMBER"], i))
+                    cycle_number = int(safe_index(ds["CYCLE_NUMBER"], i))
+                    composite_key = f"{platform_number}-{cycle_number}"
+
+                    if ArgoProfile.objects.filter(platform_number=platform_number, cycle_number=cycle_number).exists():
+                        logger.info(f"➡️ Profile {composite_key} already exists. Skipping.")
+                        continue
+
+                    profile_obj = ArgoProfile.objects.create(
+                        platform_number=platform_number,
+                        cycle_number=cycle_number,
+                        juld_date=julian_to_datetime(safe_index(ds["JULD"], i)),
+                        latitude=float(safe_index(ds["LATITUDE"], i)),
+                        longitude=float(safe_index(ds["LONGITUDE"], i)),
+                        data_mode=decode_bytes(safe_index(ds["DATA_MODE"], i)),
+                        data_centre_ref=composite_key
+                    )
+                    profiles_created += 1
+
+                    # --- Measurements ---
+                    pres_arr = ds["PRES"].isel(N_PROF=i).values.flatten()
+                    temp_arr = ds.get("TEMP", np.full_like(pres_arr, np.nan)).isel(N_PROF=i).values.flatten()
+                    sal_arr = ds.get("PSAL", np.full_like(pres_arr, np.nan)).isel(N_PROF=i).values.flatten()
+
+                    temp_adj_arr = ds.get("TEMP_ADJUSTED", np.full_like(pres_arr, np.nan)).isel(N_PROF=i).values.flatten()
+                    sal_adj_arr = ds.get("PSAL_ADJUSTED", np.full_like(pres_arr, np.nan)).isel(N_PROF=i).values.flatten()
+
+                    pres_qc_arr = ds.get("PRES_QC", np.full_like(pres_arr, b'9')).isel(N_PROF=i).values.flatten()
+                    temp_qc_arr = ds.get("TEMP_QC", np.full_like(pres_arr, b'9')).isel(N_PROF=i).values.flatten()
+                    psal_qc_arr = ds.get("PSAL_QC", np.full_like(pres_arr, b'9')).isel(N_PROF=i).values.flatten()
+
+                    for level in range(len(pres_arr)):
+                        if not np.isnan(pres_arr[level]):
+                            measurements_to_create.append(
+                                ArgoMeasurement(
+                                    profile=profile_obj,
+                                    pressure=float(pres_arr[level]),
+                                    temperature=float(temp_arr[level]) if not np.isnan(temp_arr[level]) else None,
+                                    salinity=float(sal_arr[level]) if not np.isnan(sal_arr[level]) else None,
+                                    temperature_adjusted=float(temp_adj_arr[level]) if not np.isnan(temp_adj_arr[level]) else None,
+                                    salinity_adjusted=float(sal_adj_arr[level]) if not np.isnan(sal_adj_arr[level]) else None,
+                                    pres_qc=decode_bytes(pres_qc_arr[level]),
+                                    temp_qc=decode_bytes(temp_qc_arr[level]),
+                                    psal_qc=decode_bytes(psal_qc_arr[level]),
+                                )
+                            )
+                except Exception as e:
+                    logger.error(f"❌ Error processing profile {i+1} in {uploaded_file.name}: {e}")
+                    continue
+
+        if measurements_to_create:
+            with transaction.atomic():
+                ArgoMeasurement.objects.bulk_create(measurements_to_create)
+            logger.info(f"✅ Created {profiles_created} profiles and {len(measurements_to_create)} measurements from {uploaded_file.name}.")
+            return len(measurements_to_create)
+
+        return 0
+
+    except Exception as e:
+        logger.error(f"❌ Failed to parse {uploaded_file.name}: {e}")
+        return 0

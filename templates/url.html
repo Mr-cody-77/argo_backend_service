@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -23,11 +23,11 @@
             ARGO Data Ingestion
         </h1>
         <p class="text-gray-500 text-center text-sm">
-            Enter the URL of an ARGO `.nc` profile file or an ARGO directory (e.g., `.../dac/aoml/1901820/`).
-            Data will be flattened and stored in your Django database.
+            Enter the URL of an ARGO `.nc` profile file or an ARGO directory (e.g., `.../dac/aoml/1901820/`), 
+            or upload a `.nc` file directly. Data will be flattened and stored in your Django database.
         </p>
 
-        <!-- Input Form -->
+        <!-- URL Ingestion Form -->
         <div class="space-y-4">
             <label for="argoUrl" class="block text-sm font-medium text-gray-700">ARGO Data URL:</label>
             <input type="url" id="argoUrl" placeholder="https://data-argo.ifremer.fr/dac/aoml/1901820/1901820_prof.nc"
@@ -38,6 +38,24 @@
                     class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 disabled:opacity-50">
                 <span id="buttonText">Start Ingestion</span>
                 <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 015 12c0-2.133.84-4.06 2.186-5.508L4.3 4.3l2.828 2.828A9.957 9.957 0 002 12c0 2.213.882 4.234 2.3 5.7L6.18 17.291z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <hr class="my-4">
+
+        <!-- File Upload Form -->
+        <div class="space-y-4">
+            <label for="argoFile" class="block text-sm font-medium text-gray-700">Upload .nc File:</label>
+            <input type="file" id="argoFile" accept=".nc"
+                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition duration-150 shadow-sm">
+            
+            <button id="uploadButton"
+                    class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 disabled:opacity-50">
+                <span id="uploadButtonText">Upload File</span>
+                <svg id="uploadSpinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 015 12c0-2.133.84-4.06 2.186-5.508L4.3 4.3l2.828 2.828A9.957 9.957 0 002 12c0 2.213.882 4.234 2.3 5.7L6.18 17.291z"></path>
                 </svg>
@@ -55,31 +73,28 @@
     </div>
 
     <script>
-        const API_ENDPOINT = '/argo/ingest-url/'; // Matches your Django URL configuration
+        const API_ENDPOINT = '/argo/ingest-url/';
         const urlInput = document.getElementById('argoUrl');
         const ingestButton = document.getElementById('ingestButton');
         const statusArea = document.getElementById('statusArea');
         const spinner = document.getElementById('spinner');
         const buttonText = document.getElementById('buttonText');
 
+        const fileInput = document.getElementById('argoFile');
+        const uploadButton = document.getElementById('uploadButton');
+        const uploadSpinner = document.getElementById('uploadSpinner');
+        const uploadButtonText = document.getElementById('uploadButtonText');
+
         function setStatus(message, type = 'info') {
-            statusArea.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'bg-yellow-100', 'border-red-400', 'border-green-400', 'border-yellow-400', 'text-red-700', 'text-green-700', 'text-yellow-700');
-            
+            statusArea.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'bg-blue-100', 'border-red-400', 'border-green-400', 'border-blue-400', 'text-red-700', 'text-green-700', 'text-blue-700');
             let bgColor, borderColor, textColor;
             if (type === 'success') {
-                bgColor = 'bg-green-100';
-                borderColor = 'border-green-400';
-                textColor = 'text-green-700';
+                bgColor = 'bg-green-100'; borderColor = 'border-green-400'; textColor = 'text-green-700';
             } else if (type === 'error') {
-                bgColor = 'bg-red-100';
-                borderColor = 'border-red-400';
-                textColor = 'text-red-700';
-            } else { // info
-                bgColor = 'bg-blue-100';
-                borderColor = 'border-blue-400';
-                textColor = 'text-blue-700';
+                bgColor = 'bg-red-100'; borderColor = 'border-red-400'; textColor = 'text-red-700';
+            } else {
+                bgColor = 'bg-blue-100'; borderColor = 'border-blue-400'; textColor = 'text-blue-700';
             }
-
             statusArea.classList.add(bgColor, borderColor, textColor);
             statusArea.innerHTML = `<p class="font-bold capitalize">${type}:</p><p>${message}</p>`;
             statusArea.classList.remove('hidden');
@@ -96,55 +111,59 @@
             }
         }
 
+        function toggleUploadLoading(isLoading) {
+            uploadButton.disabled = isLoading;
+            if (isLoading) {
+                uploadSpinner.classList.remove('hidden');
+                uploadButtonText.textContent = 'Uploading...';
+            } else {
+                uploadSpinner.classList.add('hidden');
+                uploadButtonText.textContent = 'Upload File';
+            }
+        }
+
         ingestButton.addEventListener('click', async () => {
             const argoUrl = urlInput.value.trim();
-
-            if (!argoUrl) {
-                setStatus("Please enter a valid ARGO URL.", 'error');
-                return;
-            }
-
-            // Basic client-side URL validation
-            try {
-                new URL(argoUrl);
-            } catch (_) {
-                setStatus("The URL format is invalid. Please ensure it starts with http:// or https://", 'error');
-                return;
-            }
-
-            toggleLoading(true);
-            setStatus(`Sending request to Django for URL: ${argoUrl}...`, 'info');
+            if (!argoUrl) { setStatus("Please enter a valid ARGO URL.", 'error'); return; }
+            try { new URL(argoUrl); } catch (_) { setStatus("Invalid URL format.", 'error'); return; }
+            toggleLoading(true); setStatus(`Sending request for URL: ${argoUrl}...`, 'info');
 
             try {
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // NOTE: In a real Django setup, you'd need to handle CSRF tokens here.
-                        // Since the view is decorated with @csrf_exempt, we skip it for this example.
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ argo_url: argoUrl })
                 });
-
                 const data = await response.json();
-
                 if (response.ok) {
-                    // Success response (status 200)
-                    setStatus(
-                        `Ingestion successful! The process saved ${data.total_records_saved || 0} measurements to the database.`, 
-                        'success'
-                    );
+                    setStatus(`Ingestion successful! Saved ${data.total_records_saved || 0} measurements.`, 'success');
                 } else {
-                    // Error response (status 400 or 500)
-                    const errorMessage = data.error || "Unknown server error occurred.";
-                    setStatus(`Server Error: ${errorMessage}`, 'error');
+                    setStatus(`Server Error: ${data.error || "Unknown error."}`, 'error');
                 }
-
             } catch (error) {
-                setStatus(`Network error: Could not connect to Django API. (${error.message})`, 'error');
-            } finally {
-                toggleLoading(false);
-            }
+                setStatus(`Network error: ${error.message}`, 'error');
+            } finally { toggleLoading(false); }
+        });
+
+        uploadButton.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+            if (!file) { setStatus("Please select a .nc file.", 'error'); return; }
+            toggleUploadLoading(true); setStatus(`Uploading ${file.name}...`, 'info');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(API_ENDPOINT, { method: 'POST', body: formData });
+                const data = await response.json();
+                if (response.ok) {
+                    setStatus(`File uploaded successfully! Saved ${data.total_records_saved || 0} measurements.`, 'success');
+                } else {
+                    setStatus(`Server Error: ${data.error || "Unknown error."}`, 'error');
+                }
+            } catch (error) {
+                setStatus(`Network error: ${error.message}`, 'error');
+            } finally { toggleUploadLoading(false); }
         });
     </script>
 
