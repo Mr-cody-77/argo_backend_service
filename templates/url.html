@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARGO Data Ingestion</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Main Ingestion Card -->
+    <div class="w-full max-w-xl bg-white shadow-xl rounded-xl p-8 space-y-6 border border-blue-100">
+        <h1 class="text-3xl font-extrabold text-gray-800 text-center flex items-center justify-center">
+            <svg class="w-8 h-8 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m-1.5 13.5L14 16m0 0l-1.5-1.5M14 16l-1.5 1.5M14 16h4m-4 0v4m-8-9a2 2 0 012-2h.01a2 2 0 012 2v.01a2 2 0 01-2 2H8a2 2 0 01-2-2zm0 0l-3 3"></path></svg>
+            ARGO Data Ingestion
+        </h1>
+        <p class="text-gray-500 text-center text-sm">
+            Enter the URL of an ARGO `.nc` profile file or an ARGO directory (e.g., `.../dac/aoml/1901820/`).
+            Data will be flattened and stored in your Django database.
+        </p>
+
+        <!-- Input Form -->
+        <div class="space-y-4">
+            <label for="argoUrl" class="block text-sm font-medium text-gray-700">ARGO Data URL:</label>
+            <input type="url" id="argoUrl" placeholder="https://data-argo.ifremer.fr/dac/aoml/1901820/1901820_prof.nc"
+                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm"
+                   required>
+            
+            <button id="ingestButton"
+                    class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 disabled:opacity-50">
+                <span id="buttonText">Start Ingestion</span>
+                <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 015 12c0-2.133.84-4.06 2.186-5.508L4.3 4.3l2.828 2.828A9.957 9.957 0 002 12c0 2.213.882 4.234 2.3 5.7L6.18 17.291z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Status & Message Area -->
+        <div id="statusArea" class="hidden p-4 rounded-lg text-sm transition duration-300 border">
+            <!-- Messages will be injected here -->
+        </div>
+
+        <div class="text-xs text-gray-400 text-center pt-2">
+            Note: For large files/directories, this process may take a long time, potentially causing a timeout in a real web server.
+        </div>
+    </div>
+
+    <script>
+        const API_ENDPOINT = '/argo/ingest-url/'; // Matches your Django URL configuration
+        const urlInput = document.getElementById('argoUrl');
+        const ingestButton = document.getElementById('ingestButton');
+        const statusArea = document.getElementById('statusArea');
+        const spinner = document.getElementById('spinner');
+        const buttonText = document.getElementById('buttonText');
+
+        function setStatus(message, type = 'info') {
+            statusArea.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'bg-yellow-100', 'border-red-400', 'border-green-400', 'border-yellow-400', 'text-red-700', 'text-green-700', 'text-yellow-700');
+            
+            let bgColor, borderColor, textColor;
+            if (type === 'success') {
+                bgColor = 'bg-green-100';
+                borderColor = 'border-green-400';
+                textColor = 'text-green-700';
+            } else if (type === 'error') {
+                bgColor = 'bg-red-100';
+                borderColor = 'border-red-400';
+                textColor = 'text-red-700';
+            } else { // info
+                bgColor = 'bg-blue-100';
+                borderColor = 'border-blue-400';
+                textColor = 'text-blue-700';
+            }
+
+            statusArea.classList.add(bgColor, borderColor, textColor);
+            statusArea.innerHTML = `<p class="font-bold capitalize">${type}:</p><p>${message}</p>`;
+            statusArea.classList.remove('hidden');
+        }
+
+        function toggleLoading(isLoading) {
+            ingestButton.disabled = isLoading;
+            if (isLoading) {
+                spinner.classList.remove('hidden');
+                buttonText.textContent = 'Ingesting Data...';
+            } else {
+                spinner.classList.add('hidden');
+                buttonText.textContent = 'Start Ingestion';
+            }
+        }
+
+        ingestButton.addEventListener('click', async () => {
+            const argoUrl = urlInput.value.trim();
+
+            if (!argoUrl) {
+                setStatus("Please enter a valid ARGO URL.", 'error');
+                return;
+            }
+
+            // Basic client-side URL validation
+            try {
+                new URL(argoUrl);
+            } catch (_) {
+                setStatus("The URL format is invalid. Please ensure it starts with http:// or https://", 'error');
+                return;
+            }
+
+            toggleLoading(true);
+            setStatus(`Sending request to Django for URL: ${argoUrl}...`, 'info');
+
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // NOTE: In a real Django setup, you'd need to handle CSRF tokens here.
+                        // Since the view is decorated with @csrf_exempt, we skip it for this example.
+                    },
+                    body: JSON.stringify({ argo_url: argoUrl })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Success response (status 200)
+                    setStatus(
+                        `Ingestion successful! The process saved ${data.total_records_saved || 0} measurements to the database.`, 
+                        'success'
+                    );
+                } else {
+                    // Error response (status 400 or 500)
+                    const errorMessage = data.error || "Unknown server error occurred.";
+                    setStatus(`Server Error: ${errorMessage}`, 'error');
+                }
+
+            } catch (error) {
+                setStatus(`Network error: Could not connect to Django API. (${error.message})`, 'error');
+            } finally {
+                toggleLoading(false);
+            }
+        });
+    </script>
+
+</body>
+</html>
