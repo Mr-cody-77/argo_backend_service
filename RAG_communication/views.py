@@ -1,11 +1,13 @@
 import requests
 from django.shortcuts import render
 import logging
-
+import os
 logger = logging.getLogger(__name__)
 
 # URL of your Flask RAG model deployed on Render
-URL = "https://sih-25.onrender.com/ask"
+
+
+URL = os.getenv("FLASK_URL","http://127.0.0.1:5000")
 
 def query_rag(request):
     response_data = None
