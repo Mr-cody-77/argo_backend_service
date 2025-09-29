@@ -6,13 +6,16 @@ from django.core.exceptions import ValidationError
 import json
 import logging
 import traceback
-from .services import coordinate_argo_ingestion, process_uploaded_netcdf_file  # added file handler
+# Imports the functions that now handle geolocation and DB storage
+from .services import coordinate_argo_ingestion, process_uploaded_netcdf_file 
 
 logger = logging.getLogger(__name__)
 
 # Mock Task (for URL ingestion)
 def argo_ingestion_task(argo_url):
+    """Delegates the ingestion task for a URL to the service layer."""
     logger.info(f"Starting ingestion for URL: {argo_url}")
+    # The coordinate_argo_ingestion function now handles calling get_nearest_ocean
     total_saved = coordinate_argo_ingestion(argo_url)
     logger.info(f"Ingestion complete for {argo_url}. Saved {total_saved} records.")
     return total_saved
@@ -27,6 +30,7 @@ def ingest_argo_data_handler(request):
       - multipart/form-data POST with 'file' → ingest uploaded .nc file
     """
     if request.method == 'GET':
+        # Assumes a template named 'url.html' exists in myapp/templates/
         return render(request, 'url.html')
 
     elif request.method == 'POST':
@@ -39,10 +43,11 @@ def ingest_argo_data_handler(request):
                 uploaded_file = request.FILES["file"]
                 logger.info(f"📂 Received file upload: {uploaded_file.name} ({uploaded_file.size} bytes)")
 
+                # Delegation to service function (which handles ocean name calculation)
                 total_records_saved = process_uploaded_netcdf_file(uploaded_file)
 
                 return JsonResponse({
-                    "message": "File ingestion completed.",
+                    "message": "File ingestion completed. Ocean names have been stored.",
                     "filename": uploaded_file.name,
                     "total_records_saved": total_records_saved,
                 }, status=200)
@@ -62,10 +67,11 @@ def ingest_argo_data_handler(request):
                 except ValidationError:
                     return JsonResponse({"error": "The provided URL is not valid."}, status=400)
 
+                # Delegation to service function (which handles ocean name calculation)
                 total_records_saved = argo_ingestion_task(argo_url)
 
                 return JsonResponse({
-                    "message": "Data ingestion completed.",
+                    "message": "Data ingestion completed. Ocean names have been stored.",
                     "url_processed": argo_url,
                     "total_records_saved": total_records_saved,
                 }, status=200)

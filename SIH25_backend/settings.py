@@ -38,8 +38,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'RAG_communication',  # Your existing app
+    'RAG_communication', 
     'data_ingestion',
+    'sql_query',  
     'corsheaders',
 ]
 

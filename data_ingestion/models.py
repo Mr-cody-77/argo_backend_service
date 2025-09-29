@@ -5,9 +5,8 @@ from django.db import models
 # Stores unique data for each measurement profile (float, cycle, location).
 # --------------------------------------------------------------------------
 
-class ArgoProfile(models.Model):
+class ArgoProfileData(models.Model):
 
-    
     # Primary Identifiers
     platform_number = models.CharField(
         max_length=8, 
@@ -22,7 +21,9 @@ class ArgoProfile(models.Model):
     # Time and Location Data
     juld_date = models.DateTimeField(
         db_index=True, 
-        help_text="Date and time of the profile measurement (UTC)"
+        help_text="Date and time of the profile measurement (UTC)",
+        null=True,
+        blank=True
     )
     latitude = models.FloatField(
         help_text="Best estimate of the profile's latitude"
@@ -35,6 +36,12 @@ class ArgoProfile(models.Model):
     data_mode = models.CharField(
         max_length=1, 
         help_text="Data type: R (Real-Time), D (Delayed Mode), or A (Adjusted)"
+    )
+    # This field MUST be present and migrated to fix the column error
+    ocean_name = models.CharField(
+        max_length=100,
+        default='Unknown',
+        help_text="The calculated ocean or sea name (via nearest coordinate lookup)."
     )
     data_centre_ref = models.CharField(max_length=50, unique=True, null=True)
     class Meta:
@@ -60,7 +67,7 @@ class ArgoMeasurement(models.Model):
     
     # Foreign Key linking back to the profile
     profile = models.ForeignKey(
-        ArgoProfile, 
+        ArgoProfileData, 
         on_delete=models.CASCADE, 
         related_name='measurements',
         help_text="The profile this measurement belongs to"
@@ -113,6 +120,7 @@ class ArgoMeasurement(models.Model):
         blank=True,
         help_text="Quality flag for salinity data"
     )
+
     
     class Meta:
         # Ensures that for any given profile, the pressure level is unique
@@ -122,4 +130,5 @@ class ArgoMeasurement(models.Model):
         verbose_name_plural = "ARGO Measurements"
 
     def __str__(self):
-        return f"Profile {self.profile.id} @ {self.pressure} dbar"
+        # FIX: Access the ocean_name through the related profile object
+        return f"Profile {self.profile.data_centre_ref} @ {self.pressure} dbar in the {self.profile.ocean_name}"

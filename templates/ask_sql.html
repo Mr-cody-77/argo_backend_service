@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARGO Data Query</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }
+        input, select, button {
+            padding: 5px 10px;
+            margin: 5px 0;
+        }
+        #results {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Query ARGO Float Data</h2>
+
+<form id="argoForm">
+    <label for="min_lat">Min Latitude:</label><br>
+    <input type="number" id="min_lat" name="min_lat" step="0.01" value="-90"><br>
+
+    <label for="max_lat">Max Latitude:</label><br>
+    <input type="number" id="max_lat" name="max_lat" step="0.01" value="90"><br>
+
+    <label for="ocean_name">Ocean Name:</label><br>
+    <input type="text" id="ocean_name" name="ocean_name"><br>
+
+    <label for="start_date">Start Date (YYYY-MM-DD):</label><br>
+    <input type="date" id="start_date" name="start_date"><br>
+
+    <label for="end_date">End Date (YYYY-MM-DD):</label><br>
+    <input type="date" id="end_date" name="end_date"><br>
+
+    <button type="submit">Query</button>
+</form>
+
+<div id="results"></div>
+
+<script>
+document.getElementById('argoForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const payload = {
+        min_lat: parseFloat(document.getElementById('min_lat').value),
+        max_lat: parseFloat(document.getElementById('max_lat').value),
+        ocean_name: document.getElementById('ocean_name').value || null,
+        start_date: document.getElementById('start_date').value || null,
+        end_date: document.getElementById('end_date').value || null
+    };
+
+    try {
+        const response = await fetch("http://127.0.0.1:8000/sql-query/lookup-table" {  // replace with your URL
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"  // use only if CSRF protection is enabled
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+    } catch (error) {
+        document.getElementById('results').textContent = "Error: " + error;
+    }
+});
+</script>
+
+</body>
+</html>
