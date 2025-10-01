@@ -4,11 +4,12 @@ import os
 import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from decouple import config
 
 logger = logging.getLogger(__name__)
 
 # URL of your Flask RAG model deployed on Render
-URL = os.getenv("FLASK_URL", "http://127.0.0.1:8000/ask")
+URL = config("FLASK_URL")  
 # URL="http://127.0.0.1:5000/ask"
 
 @csrf_exempt
@@ -26,7 +27,7 @@ def query_rag(request):
 
         try:
             # Increased timeout to handle slow API
-            resp = requests.post(URL, json={"query": user_query}, timeout=30)
+            resp = requests.post(URL, json={"query": user_query}, timeout=120)
 
             # Log raw response for debugging
             logger.debug(f"Flask API raw response: {resp.text}")
