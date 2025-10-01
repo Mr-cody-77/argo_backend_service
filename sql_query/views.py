@@ -12,30 +12,30 @@ logger = logging.getLogger(__name__)
 
 
 @csrf_exempt
+# django/views.py
+@csrf_exempt
 def sql_query_argo_data(request):
     """
     API endpoint to query floats with filters:
-    min_lat, max_lat, ocean_name, start_date, end_date.
-    Works with both GET query params and POST JSON.
+    min_lat, max_lat, ocean_name, start_date, end_date, institution, year.
     """
     try:
-        # --- Parse inputs depending on request method ---
         if request.method == "POST":
             try:
                 data = json.loads(request.body)
             except json.JSONDecodeError:
                 return JsonResponse({"error": "Invalid JSON body"}, status=400)
-        else:  # GET fallback
+        else:
             data = request.GET.dict()
 
-        # Extract filters with defaults
         min_lat = float(data.get("min_lat", -90))
         max_lat = float(data.get("max_lat", 90))
         ocean_name = data.get("ocean_name") or None
         start_date = data.get("start_date") or None
         end_date = data.get("end_date") or None
+        institution = data.get("institution") or None
+        year = data.get("year") or None
 
-        # --- Base Profile Query ---
         profiles = ArgoProfileData.objects.filter(
             latitude__gte=min_lat,
             latitude__lte=max_lat,
@@ -58,7 +58,16 @@ def sql_query_argo_data(request):
         if ocean_name:
             profiles = profiles.filter(ocean_name__iexact=ocean_name)
 
-        # --- Join with Measurements + Aggregate ---
+        if institution:
+            profiles = profiles.filter(institution__iexact=institution)
+
+        if year:
+            try:
+                year = int(year)
+                profiles = profiles.filter(juld_date__year=year)
+            except ValueError:
+                return JsonResponse({"error": "Invalid year format, expected YYYY"}, status=400)
+
         results = (
             ArgoMeasurement.objects.filter(profile__in=profiles)
             .values(
@@ -77,7 +86,6 @@ def sql_query_argo_data(request):
             .order_by("profile__platform_number", "profile__cycle_number")
         )
 
-        # --- Format Response ---
         formatted = [
             {
                 "platform_number": r["profile__platform_number"],

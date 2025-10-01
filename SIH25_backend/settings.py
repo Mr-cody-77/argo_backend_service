@@ -57,6 +57,11 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'SIH25_backend.urls'
 CORS_ALLOW_ALL_ORIGINS = True 
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://floatchat-omega.vercel.app"
+]
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
