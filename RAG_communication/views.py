@@ -9,8 +9,10 @@ from decouple import config
 logger = logging.getLogger(__name__)
 
 # URL of your Flask RAG model deployed on Render
-URL = config("FLASK_URL")  
+# URL = config("FLASK_URL")  
 # URL="http://127.0.0.1:5000/ask"
+URL="https://rag-flask-y4y1.onrender.com/ask"
+
 
 @csrf_exempt
 def query_rag(request):
